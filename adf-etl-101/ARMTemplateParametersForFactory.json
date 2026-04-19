@@ -1,0 +1,42 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adf-etl-101"
+		},
+		"AzureBlobStorage1_connectionString": {
+			"value": ""
+		},
+		"AzureBlobStorage2_connectionString": {
+			"value": ""
+		},
+		"Source_connectionString": {
+			"value": ""
+		},
+		"SourceFact_connectionString": {
+			"value": ""
+		},
+		"adls_con_accountKey": {
+			"value": ""
+		},
+		"con_netflixdb_password": {
+			"value": ""
+		},
+		"adls_con_properties_typeProperties_url": {
+			"value": "https://stgadlsnetflix.dfs.core.windows.net/"
+		},
+		"con_netflixdb_properties_typeProperties_server": {
+			"value": "netflixserver.database.windows.net"
+		},
+		"con_netflixdb_properties_typeProperties_database": {
+			"value": "netflix_metadata_db"
+		},
+		"con_netflixdb_properties_typeProperties_userName": {
+			"value": "Pragya"
+		},
+		"github_con_properties_typeProperties_url": {
+			"value": "https://raw.githubusercontent.com/"
+		}
+	}
+}
