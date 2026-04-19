@@ -1,0 +1,394 @@
+{
+	"name": "GithubToBronze",
+	"properties": {
+		"activities": [
+			{
+				"name": "get_Github_Files",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "GET",
+					"headers": {
+						"Accept": "application/vnd.github+json"
+					},
+					"url": "https://api.github.com/repos/pragyam29/Netflix_Project/contents/Input_Files"
+				}
+			},
+			{
+				"name": "For_Each_File",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "get_Github_Files",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@json(activity('get_Github_Files').output.Response)",
+						"type": "Expression"
+					},
+					"isSequential": false,
+					"batchCount": 5,
+					"activities": [
+						{
+							"name": "Get_FileName_SHA",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "select file_name, current_sha as previous_sha from netflix_metadata.file_names\nwhere file_name = '@{item().name}'",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "netflix_db",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": false
+							}
+						},
+						{
+							"name": "IfSHAupdated",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Get_FileName_SHA",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@or(\n    empty(activity('Get_FileName_SHA').output.value),\n    not(equals(item().sha,activity('Get_FileName_SHA').output.value[0].previous_sha))\n    )",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "LogSkippedFiles",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[netflix_logs].[sp_log_processed_file]",
+											"storedProcedureParameters": {
+												"action_taken": {
+													"value": "SKIPPED",
+													"type": "String"
+												},
+												"current_sha": {
+													"value": {
+														"value": "@item().sha",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"file_name": {
+													"value": {
+														"value": "@item().name",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"pipeline_run_id": {
+													"value": {
+														"value": "@pipeline().RunId",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"previous_sha": {
+													"value": {
+														"value": "@if(\n    empty(activity('Get_FileName_SHA').output.value),\n    null,\n    activity('Get_FileName_SHA').output.value[0].previous_sha\n)",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "con_netflixdb",
+											"type": "LinkedServiceReference"
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "GithubToBronze",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "DelimitedTextSource",
+												"storeSettings": {
+													"type": "HttpReadSettings",
+													"requestMethod": "GET"
+												},
+												"formatSettings": {
+													"type": "DelimitedTextReadSettings"
+												}
+											},
+											"sink": {
+												"type": "DelimitedTextSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "DelimitedTextWriteSettings",
+													"quoteAllText": true,
+													"fileExtension": ".txt"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "ds_github",
+												"type": "DatasetReference",
+												"parameters": {
+													"file_name": {
+														"value": "@item().name",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "ds_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"folder_name": {
+														"value": "@split(item().name,'.')[0]",
+														"type": "Expression"
+													},
+													"file_name": {
+														"value": "@item().name",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "UpdateFileMetadata",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "GithubToBronze",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[upsert_file_metadata]",
+											"storedProcedureParameters": {
+												"file_name": {
+													"value": {
+														"value": "@item().name",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"current_sha": {
+													"value": {
+														"value": "@item().sha",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "con_netflixdb",
+											"type": "LinkedServiceReference"
+										}
+									},
+									{
+										"name": "LogProcessedFiles",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "UpdateFileMetadata",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[netflix_logs].[sp_log_processed_file]",
+											"storedProcedureParameters": {
+												"action_taken": {
+													"value": "LOADED",
+													"type": "String"
+												},
+												"current_sha": {
+													"value": {
+														"value": "@item().sha",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"file_name": {
+													"value": {
+														"value": "@item().name",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"pipeline_run_id": {
+													"value": {
+														"value": "@pipeline().RunId",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"previous_sha": {
+													"value": {
+														"value": "@if(\n    empty(activity('Get_FileName_SHA').output.value),\n    null,\n    activity('Get_FileName_SHA').output.value[0].previous_sha\n)",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "con_netflixdb",
+											"type": "LinkedServiceReference"
+										}
+									},
+									{
+										"name": "LogFailedFiles",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "GithubToBronze",
+												"dependencyConditions": [
+													"Failed"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[netflix_logs].[sp_log_failed_file]",
+											"storedProcedureParameters": {
+												"activity_name": {
+													"value": "GithubToBronze",
+													"type": "String"
+												},
+												"error_message": {
+													"value": {
+														"value": "@activity('GithubToBronze').error.message",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"error_type": {
+													"value": "NETWORK",
+													"type": "String"
+												},
+												"file_name": {
+													"value": {
+														"value": "@item().name",
+														"type": "Expression"
+													},
+													"type": "String"
+												},
+												"pipeline_run_id": {
+													"value": {
+														"value": "@pipeline().RunId",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "con_netflixdb",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-04-19T11:56:56Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

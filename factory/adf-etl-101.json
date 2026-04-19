@@ -1,0 +1,9 @@
+{
+	"name": "adf-etl-101",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "740e22ba-4d80-430c-b9d8-4b74557544ac",
+		"tenantId": "cbe44da6-9808-4551-8459-ecbef1ccd378"
+	}
+}

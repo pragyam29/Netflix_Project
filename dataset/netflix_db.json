@@ -1,0 +1,26 @@
+{
+	"name": "netflix_db",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "con_netflixdb",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "file_name",
+				"type": "varchar"
+			},
+			{
+				"name": "current_sha",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "netflix_metadata",
+			"table": "file_names"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
